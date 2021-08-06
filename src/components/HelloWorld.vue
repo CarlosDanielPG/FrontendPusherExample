@@ -1,40 +1,106 @@
 <template>
   <div class="hello">
     <h1>{{ msg }}</h1>
-    <p>
-      For a guide and recipes on how to configure / customize this project,<br>
-      check out the
-      <a href="https://cli.vuejs.org" target="_blank" rel="noopener">vue-cli documentation</a>.
-    </p>
-    <h3>Installed CLI Plugins</h3>
-    <ul>
-      <li><a href="https://github.com/vuejs/vue-cli/tree/dev/packages/%40vue/cli-plugin-babel" target="_blank" rel="noopener">babel</a></li>
-      <li><a href="https://github.com/vuejs/vue-cli/tree/dev/packages/%40vue/cli-plugin-eslint" target="_blank" rel="noopener">eslint</a></li>
-    </ul>
-    <h3>Essential Links</h3>
-    <ul>
-      <li><a href="https://vuejs.org" target="_blank" rel="noopener">Core Docs</a></li>
-      <li><a href="https://forum.vuejs.org" target="_blank" rel="noopener">Forum</a></li>
-      <li><a href="https://chat.vuejs.org" target="_blank" rel="noopener">Community Chat</a></li>
-      <li><a href="https://twitter.com/vuejs" target="_blank" rel="noopener">Twitter</a></li>
-      <li><a href="https://news.vuejs.org" target="_blank" rel="noopener">News</a></li>
-    </ul>
-    <h3>Ecosystem</h3>
-    <ul>
-      <li><a href="https://router.vuejs.org" target="_blank" rel="noopener">vue-router</a></li>
-      <li><a href="https://vuex.vuejs.org" target="_blank" rel="noopener">vuex</a></li>
-      <li><a href="https://github.com/vuejs/vue-devtools#vue-devtools" target="_blank" rel="noopener">vue-devtools</a></li>
-      <li><a href="https://vue-loader.vuejs.org" target="_blank" rel="noopener">vue-loader</a></li>
-      <li><a href="https://github.com/vuejs/awesome-vue" target="_blank" rel="noopener">awesome-vue</a></li>
-    </ul>
+    <div>
+      <h3>Mensajes de proyecto</h3>
+      <ul v-if="!$apollo.queries.projectMessages.loading">
+        <li v-for="(message, id) in projectMessages.data" :key="id">{{ message.body }}</li>
+      </ul>
+
+      <input
+        type='text'
+        class="form-control"
+        placeholder="Type your message..."
+        v-model="projectMessage"
+        @keyup.enter="sendProjectMessage"
+      >
+    </div><br>
+    <div>
+      <h3>Mensajes generales</h3>
+      <ul v-if="!$apollo.queries.messages.loading">
+        <li v-for="(message, id) in messages.data" :key="id">{{ message.body }}</li>
+      </ul>
+
+      <input
+        type='text'
+        class="form-control"
+        placeholder="Type your message..."
+        v-model="message"
+        @keyup.enter="sendMessage"
+      >
+    </div>
   </div>
 </template>
 
 <script>
+import { CREATE_PROJECT_MESSAGE, CREATE_MESSAGE } from '../graphql/mutations'
+import { PROJECT_MESSAGE_SENT_SUBSCRIPTION, MESSAGE_SENT_SUBSCRIPTION } from '../graphql/subscriptions'
+import { PROJECT_MESSAGES, MESSAGES } from '../graphql/queries'
+
 export default {
   name: 'HelloWorld',
   props: {
     msg: String
+  },
+  data() {
+    return {
+      projectMessage: '',
+      message: ''
+    };
+  },
+  apollo: {
+    projectMessages: {
+      query: PROJECT_MESSAGES,
+      subscribeToMore: {
+        document: PROJECT_MESSAGE_SENT_SUBSCRIPTION,
+        updateQuery: (previousData, { subscriptionData }) => {
+          console.log('Subscription data:', subscriptionData)
+          return {
+            projectMessages: {
+              ...previousData.projectMessages,
+              data: [subscriptionData.data.projectMessageCreated, ...previousData.projectMessages.data]
+            },
+          };
+        },
+      }
+    },
+    messages: {
+      query: MESSAGES,
+      subscribeToMore: {
+        document: MESSAGE_SENT_SUBSCRIPTION,
+        updateQuery: (previousData, { subscriptionData }) => {
+          console.log('Subscription data:', subscriptionData)
+          return {
+            messages: {
+              ...previousData.messages,
+              data: [subscriptionData.data.messageCreated, ...previousData.messages.data]
+            },
+          };
+        },
+      }
+    }
+  },
+  methods: {
+    sendProjectMessage: async function() {
+      const message = this.projectMessage;
+      this.message = '';
+      await this.$apollo.mutate({
+        mutation: CREATE_PROJECT_MESSAGE,
+        variables: {
+          message
+        },
+      });
+    },
+    sendMessage: async function() {
+      const message = this.message;
+      this.message = '';
+      await this.$apollo.mutate({
+        mutation: CREATE_MESSAGE,
+        variables: {
+          message
+        },
+      });
+    }
   }
 }
 </script>
@@ -47,10 +113,6 @@ h3 {
 ul {
   list-style-type: none;
   padding: 0;
-}
-li {
-  display: inline-block;
-  margin: 0 10px;
 }
 a {
   color: #42b983;
